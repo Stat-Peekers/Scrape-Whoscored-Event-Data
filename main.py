@@ -8,15 +8,17 @@ Created on Wed Oct 14 14:20:02 2020
 
 import time
 import pandas as pd
+
 pd.options.mode.chained_assignment = None
 import json
 from bs4 import BeautifulSoup as soup
-import re 
+import re
 from collections import OrderedDict
 import datetime
 from datetime import datetime as dt
 import itertools
 import numpy as np
+
 try:
     from tqdm import trange
 except ModuleNotFoundError:
@@ -28,212 +30,199 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
 
-
 TRANSLATE_DICT = {'Jan': 'Jan',
-                 'Feb': 'Feb',
-                 'Mac': 'Mar',
-                 'Apr': 'Apr',
-                 'Mei': 'May',
-                 'Jun': 'Jun',
-                 'Jul': 'Jul',
-                 'Ago': 'Aug',
-                 'Sep': 'Sep',
-                 'Okt': 'Oct',
-                 'Nov': 'Nov',
-                 'Des': 'Dec',
-                 'Jan': 'Jan',
-                 'Feb': 'Feb',
-                 'Mar': 'Mar',
-                 'Apr': 'Apr',
-                 'May': 'May',
-                 'Jun': 'Jun',
-                 'Jul': 'Jul',
-                 'Aug': 'Aug',
-                 'Sep': 'Sep',
-                 'Oct': 'Oct',
-                 'Nov': 'Nov',
-                 'Dec': 'Dec'}
+                  'Feb': 'Feb',
+                  'Mac': 'Mar',
+                  'Apr': 'Apr',
+                  'Mei': 'May',
+                  'Jun': 'Jun',
+                  'Jul': 'Jul',
+                  'Ago': 'Aug',
+                  'Sep': 'Sep',
+                  'Okt': 'Oct',
+                  'Nov': 'Nov',
+                  'Des': 'Dec',
+                  'Jan': 'Jan',
+                  'Feb': 'Feb',
+                  'Mar': 'Mar',
+                  'Apr': 'Apr',
+                  'May': 'May',
+                  'Jun': 'Jun',
+                  'Jul': 'Jul',
+                  'Aug': 'Aug',
+                  'Sep': 'Sep',
+                  'Oct': 'Oct',
+                  'Nov': 'Nov',
+                  'Dec': 'Dec'}
 
 main_url = 'https://1xbet.whoscored.com/'
 
 
-
 def getLeagueUrls(minimize_window=True):
-    
     driver = webdriver.Chrome('chromedriver.exe')
-    
+
     if minimize_window:
         driver.minimize_window()
-        
+
     driver.get(main_url)
     league_names = []
     league_urls = []
     for i in range(21):
-        league_name = driver.find_element_by_xpath('//*[@id="popular-tournaments-list"]/li['+str(i+1)+']/a').text
-        league_link = driver.find_element_by_xpath('//*[@id="popular-tournaments-list"]/li['+str(i+1)+']/a').get_attribute('href')
+        league_name = driver.find_element_by_xpath('//*[@id="popular-tournaments-list"]/li[' + str(i + 1) + ']/a').text
+        league_link = driver.find_element_by_xpath('//*[@id="popular-tournaments-list"]/li[' + str(i + 1) + ']/a').get_attribute('href')
         league_names.append(league_name)
         league_urls.append(league_link)
-        
+
     for link in league_urls:
         if 'Russia' in link:
             r_index = league_urls.index(link)
-            
+
     league_names[r_index] = 'Russian Premier League'
-    
+
     leagues = {}
-    for name,link in zip(league_names,league_urls):
+    for name, link in zip(league_names, league_urls):
         leagues[name] = link
     driver.close()
     return leagues
 
 
-      
 def getMatchUrls(comp_urls, competition, season, maximize_window=True):
-
     driver = webdriver.Chrome('chromedriver.exe')
-    
+
     if maximize_window:
         driver.maximize_window()
-    
+
     comp_url = comp_urls[competition]
     driver.get(comp_url)
     time.sleep(5)
-    
+
     seasons = driver.find_element_by_xpath('//*[@id="seasons"]').get_attribute('innerHTML').split(sep='\n')
     seasons = [i for i in seasons if i]
-    
-    
-    for i in range(1, len(seasons)+1):
-        if driver.find_element_by_xpath('//*[@id="seasons"]/option['+str(i)+']').text == season:
-            driver.find_element_by_xpath('//*[@id="seasons"]/option['+str(i)+']').click()
-            
+
+    for i in range(1, len(seasons) + 1):
+        if driver.find_element_by_xpath('//*[@id="seasons"]/option[' + str(i) + ']').text == season:
+            driver.find_element_by_xpath('//*[@id="seasons"]/option[' + str(i) + ']').click()
+
             time.sleep(5)
             try:
                 stages = driver.find_element_by_xpath('//*[@id="stages"]').get_attribute('innerHTML').split(sep='\n')
                 stages = [i for i in stages if i]
-                
+
                 all_urls = []
-            
-                for i in range(1, len(stages)+1):
+
+                for i in range(1, len(stages) + 1):
                     if competition == 'Champions League' or competition == 'Europa League':
-                        if 'Group Stages' in driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').text or 'Final Stage' in driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').text:
-                            driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').click()
+                        if 'Group Stages' in driver.find_element_by_xpath(
+                                '//*[@id="stages"]/option[' + str(i) + ']').text or 'Final Stage' in driver.find_element_by_xpath(
+                                '//*[@id="stages"]/option[' + str(i) + ']').text:
+                            driver.find_element_by_xpath('//*[@id="stages"]/option[' + str(i) + ']').click()
                             time.sleep(5)
-                            
-                            driver.execute_script("window.scrollTo(0, 400)") 
-                            
-                            match_urls = getFixtureData(driver)
-                            
-                            match_urls = getSortedData(match_urls)
-                            
-                            match_urls2 = [url for url in match_urls if '?' not in url['date'] and '\n' not in url['date']]
-                            
-                            all_urls += match_urls2
-                        else:
-                            continue
-                    
-                    elif competition == 'Major League Soccer':
-                        if 'Grp. ' not in driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').text: 
-                            driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').click()
-                            time.sleep(5)
-                        
+
                             driver.execute_script("window.scrollTo(0, 400)")
-                            
+
                             match_urls = getFixtureData(driver)
-                            
+
                             match_urls = getSortedData(match_urls)
-                            
+
                             match_urls2 = [url for url in match_urls if '?' not in url['date'] and '\n' not in url['date']]
-                            
+
                             all_urls += match_urls2
                         else:
                             continue
-                        
+
+                    elif competition == 'Major League Soccer':
+                        if 'Grp. ' not in driver.find_element_by_xpath('//*[@id="stages"]/option[' + str(i) + ']').text:
+                            driver.find_element_by_xpath('//*[@id="stages"]/option[' + str(i) + ']').click()
+                            time.sleep(5)
+
+                            driver.execute_script("window.scrollTo(0, 400)")
+
+                            match_urls = getFixtureData(driver)
+
+                            match_urls = getSortedData(match_urls)
+
+                            match_urls2 = [url for url in match_urls if '?' not in url['date'] and '\n' not in url['date']]
+
+                            all_urls += match_urls2
+                        else:
+                            continue
+
                     else:
-                        driver.find_element_by_xpath('//*[@id="stages"]/option['+str(i)+']').click()
+                        driver.find_element_by_xpath('//*[@id="stages"]/option[' + str(i) + ']').click()
                         time.sleep(5)
-                    
+
                         driver.execute_script("window.scrollTo(0, 400)")
-                        
+
                         match_urls = getFixtureData(driver)
-                        
+
                         match_urls = getSortedData(match_urls)
-                        
+
                         match_urls2 = [url for url in match_urls if '?' not in url['date'] and '\n' not in url['date']]
-                        
+
                         all_urls += match_urls2
-                
+
             except NoSuchElementException:
                 all_urls = []
-                
+
                 driver.execute_script("window.scrollTo(0, 400)")
-                
+
                 match_urls = getFixtureData(driver)
-                
+
                 match_urls = getSortedData(match_urls)
-                
+
                 match_urls2 = [url for url in match_urls if '?' not in url['date'] and '\n' not in url['date']]
-                
+
                 all_urls += match_urls2
-            
-            
+
             remove_dup = [dict(t) for t in {tuple(sorted(d.items())) for d in all_urls}]
             all_urls = getSortedData(remove_dup)
-            
-            driver.close() 
-    
+
+            driver.close()
+
             return all_urls
-     
-    season_names = [re.search(r'\>(.*?)\<',season).group(1) for season in seasons]
-    driver.close() 
+
+    season_names = [re.search(r'\>(.*?)\<', season).group(1) for season in seasons]
+    driver.close()
     print('Seasons available: {}'.format(season_names))
-    raise('Season Not Found.')
-    
-
-
+    raise ('Season Not Found.')
 
 
 def getTeamUrls(team, match_urls):
-    
     team_data = []
     for fixture in match_urls:
         if fixture['home'] == team or fixture['away'] == team:
             team_data.append(fixture)
     team_data = [a[0] for a in itertools.groupby(team_data)]
-                
+
     return team_data
 
 
 def getMatchesData(match_urls, minimize_window=True):
-    
     matches = []
-    
+
     driver = webdriver.Chrome('chromedriver.exe')
     if minimize_window:
         driver.minimize_window()
-    
+
     try:
         for i in trange(len(match_urls), desc='Getting Match Data'):
             # recommended to avoid getting blocked by incapsula/imperva bots
             time.sleep(7)
-            match_data = getMatchData(driver, main_url+match_urls[i]['url'], display=False, close_window=False)
+            match_data = getMatchData(driver, main_url + match_urls[i]['url'], display=False, close_window=False)
             matches.append(match_data)
     except NameError:
         print('Recommended: \'pip install tqdm\' for a progress bar while the data gets scraped....')
         time.sleep(7)
         for i in range(len(match_urls)):
-            match_data = getMatchData(driver, main_url+match_urls[i]['url'], display=False, close_window=False)
+            match_data = getMatchData(driver, main_url + match_urls[i]['url'], display=False, close_window=False)
             matches.append(match_data)
-    
+
     driver.close()
-    
+
     return matches
 
 
-
-
 def getFixtureData(driver):
-
     matches_ls = []
     while True:
         table_rows = driver.find_elements_by_class_name('divtable-row')
@@ -242,19 +231,19 @@ def getFixtureData(driver):
         for row in table_rows:
             match_dict = {}
             element = soup(row.get_attribute('innerHTML'), features='lxml')
-            link_tag = element.find("a", {"class":"result-1 rc"})
+            link_tag = element.find("a", {"class": "result-1 rc"})
             if type(link_tag) is type(None):
-                if type(element.find('span', {'class':'status-1 rc'})) is type(None):
+                if type(element.find('span', {'class': 'status-1 rc'})) is type(None):
                     date = row.text.split(', ')[-1]
             if type(link_tag) is not type(None):
                 match_dict['date'] = date
-                match_dict['time'] = element.find('div', {'class':'col12-lg-1 col12-m-1 col12-s-0 col12-xs-0 time divtable-data'}).text
-                match_dict['home'] = element.find_all("a", {"class":"team-link"})[0].text
-                match_dict['away'] = element.find_all("a", {"class":"team-link"})[1].text
-                match_dict['score'] = element.find("a", {"class":"result-1 rc"}).text
+                match_dict['time'] = element.find('div', {'class': 'col12-lg-1 col12-m-1 col12-s-0 col12-xs-0 time divtable-data'}).text
+                match_dict['home'] = element.find_all("a", {"class": "team-link"})[0].text
+                match_dict['away'] = element.find_all("a", {"class": "team-link"})[1].text
+                match_dict['score'] = element.find("a", {"class": "result-1 rc"}).text
                 match_dict['url'] = link_tag.get("href")
             matches_ls.append(match_dict)
-                
+
         prev_month = driver.find_element_by_xpath('//*[@id="date-controller"]/a[1]').click()
         time.sleep(2)
         if driver.find_element_by_xpath('//*[@id="date-controller"]/a[1]').get_attribute('title') == 'No data for previous week':
@@ -262,49 +251,41 @@ def getFixtureData(driver):
             for row in table_rows:
                 match_dict = {}
                 element = soup(row.get_attribute('innerHTML'), features='lxml')
-                link_tag = element.find("a", {"class":"result-1 rc"})
+                link_tag = element.find("a", {"class": "result-1 rc"})
                 if type(link_tag) is type(None):
-                    if type(element.find('span', {'class':'status-1 rc'})) is type(None):
+                    if type(element.find('span', {'class': 'status-1 rc'})) is type(None):
                         date = row.text.split(', ')[-1]
                 if type(link_tag) is not type(None):
                     match_dict['date'] = date
-                    match_dict['time'] = element.find('div', {'class':'col12-lg-1 col12-m-1 col12-s-0 col12-xs-0 time divtable-data'}).text
-                    match_dict['home'] = element.find_all("a", {"class":"team-link"})[0].text
-                    match_dict['away'] = element.find_all("a", {"class":"team-link"})[1].text
-                    match_dict['score'] = element.find("a", {"class":"result-1 rc"}).text
+                    match_dict['time'] = element.find('div', {'class': 'col12-lg-1 col12-m-1 col12-s-0 col12-xs-0 time divtable-data'}).text
+                    match_dict['home'] = element.find_all("a", {"class": "team-link"})[0].text
+                    match_dict['away'] = element.find_all("a", {"class": "team-link"})[1].text
+                    match_dict['score'] = element.find("a", {"class": "result-1 rc"}).text
                     match_dict['url'] = link_tag.get("href")
                 matches_ls.append(match_dict)
             break
-    
+
     matches_ls = list(filter(None, matches_ls))
 
     return matches_ls
 
 
-
-
-
-
 def translateDate(data):
-    
     for match in data:
         date = match['date'].split()
         match['date'] = ' '.join([TRANSLATE_DICT[date[0]], date[1], date[2]])
-    
+
     return data
 
 
 def getSortedData(data):
-
     try:
-        data = sorted(data, key = lambda i: dt.strptime(i['date'], '%b %d %Y'))
+        data = sorted(data, key=lambda i: dt.strptime(i['date'], '%b %d %Y'))
         return data
-    except ValueError:    
+    except ValueError:
         data = translateDate(data)
-        data = sorted(data, key = lambda i: dt.strptime(i['date'], '%b %d %Y'))
+        data = sorted(data, key=lambda i: dt.strptime(i['date'], '%b %d %Y'))
         return data
-    
-
 
 
 def getMatchData(driver, url, display=True, close_window=True):
@@ -313,24 +294,20 @@ def getMatchData(driver, url, display=True, close_window=True):
     # get script data from page source
     script_content = driver.find_element_by_xpath('//*[@id="layout-wrapper"]/script[1]').get_attribute('innerHTML')
 
-
     # clean script content
     script_content = re.sub(r"[\n\t]*", "", script_content)
     script_content = script_content[script_content.index("matchId"):script_content.rindex("}")]
 
-
-    # this will give script content in list form 
+    # this will give script content in list form
     script_content_list = list(filter(None, script_content.strip().split(',            ')))
-    metadata = script_content_list.pop(1) 
-
+    metadata = script_content_list.pop(1)
 
     # string format to json format
     match_data = json.loads(metadata[metadata.index('{'):])
     keys = [item[:item.index(':')].strip() for item in script_content_list]
-    values = [item[item.index(':')+1:].strip() for item in script_content_list]
-    for key,val in zip(keys, values):
+    values = [item[item.index(':') + 1:].strip() for item in script_content_list]
+    for key, val in zip(keys, values):
         match_data[key] = json.loads(val)
-
 
     # get other details about the match
     region = driver.find_element_by_xpath('//*[@id="breadcrumb-nav"]/span[1]').text
@@ -351,38 +328,31 @@ def getMatchData(driver, url, display=True, close_window=True):
     match_data['competitionType'] = competition_type
     match_data['competitionStage'] = competition_stage
 
-
     # sort match_data dictionary alphabetically
     match_data = OrderedDict(sorted(match_data.items()))
     match_data = dict(match_data)
     if display:
         print('Region: {}, League: {}, Season: {}, Match Id: {}'.format(region, league, season, match_data['matchId']))
-    
-    
+
     if close_window:
         driver.close()
-        
+
     return match_data
 
 
-
-
-
 def createEventsDF(data):
-    
     events = data['events']
     for event in events:
-        event.update({'matchId' : data['matchId'],
-                     'startDate' : data['startDate'],
-                     'startTime' : data['startTime'],
-                     'score' : data['score'],
-                     'ftScore' : data['ftScore'],
-                     'htScore' : data['htScore'],
-                     'etScore' : data['etScore'],
-                     'venueName' : data['venueName'],
-                     'maxMinute' : data['maxMinute']})
+        event.update({'matchId': data['matchId'],
+                      'startDate': data['startDate'],
+                      'startTime': data['startTime'],
+                      'score': data['score'],
+                      'ftScore': data['ftScore'],
+                      'htScore': data['htScore'],
+                      'etScore': data['etScore'],
+                      'venueName': data['venueName'],
+                      'maxMinute': data['maxMinute']})
     events_df = pd.DataFrame(events)
-
 
     # clean period column
     events_df['period'] = pd.json_normalize(events_df['period'])['displayName']
@@ -429,38 +399,42 @@ def createEventsDF(data):
         events_df['isGoal'] = False
 
     # add player name column
-    events_df.loc[events_df.playerId.notna(), 'playerId'] = events_df.loc[events_df.playerId.notna(), 'playerId'].astype(int).astype(str)    
-    player_name_col = events_df.loc[:, 'playerId'].map(data['playerIdNameDictionary']) 
-    events_df.insert(loc=events_df.columns.get_loc("playerId")+1, column='playerName', value=player_name_col)
+    events_df.loc[events_df.playerId.notna(), 'playerId'] = events_df.loc[events_df.playerId.notna(), 'playerId'].astype(int).astype(str)
+    player_name_col = events_df.loc[:, 'playerId'].map(data['playerIdNameDictionary'])
+    events_df.insert(loc=events_df.columns.get_loc("playerId") + 1, column='playerName', value=player_name_col)
 
     # add home/away column
-    h_a_col = events_df['teamId'].map({data['home']['teamId']:'h', data['away']['teamId']:'a'})
-    events_df.insert(loc=events_df.columns.get_loc("teamId")+1, column='h_a', value=h_a_col)
+    h_a_col = events_df['teamId'].map({data['home']['teamId']: 'h', data['away']['teamId']: 'a'})
+    events_df.insert(loc=events_df.columns.get_loc("teamId") + 1, column='h_a', value=h_a_col)
+
+    # add teamName column
+    team_name = events_df['teamId'].map({data['home']['teamId']: data['home']['name'],
+                                         data['away']['teamId']: data['away']['name']})
+    events_df.insert(loc=events_df.columns.get_loc("teamId") + 1, column='teamName', value=team_name)
+    del team_name
 
     # adding shot body part column
-    events_df['shotBodyType'] =  np.nan
-    for i in events_df.loc[events_df.isShot==True].index:
-        for j in events_df.loc[events_df.isShot==True].qualifiers.loc[i]:
+    events_df['shotBodyType'] = np.nan
+    for i in events_df.loc[events_df.isShot == True].index:
+        for j in events_df.loc[events_df.isShot == True].qualifiers.loc[i]:
             if j['type'] == 'RightFoot' or j['type'] == 'LeftFoot' or j['type'] == 'Head' or j['type'] == 'OtherBodyPart':
                 events_df['shotBodyType'].loc[i] = j['type']
 
     # adding shot situation column
-    events_df['situation'] =  np.nan
-    for i in events_df.loc[events_df.isShot==True].index:
-        for j in events_df.loc[events_df.isShot==True].qualifiers.loc[i]:
+    events_df['situation'] = np.nan
+    for i in events_df.loc[events_df.isShot == True].index:
+        for j in events_df.loc[events_df.isShot == True].qualifiers.loc[i]:
             if j['type'] == 'FromCorner' or j['type'] == 'SetPiece' or j['type'] == 'DirectFreekick':
                 events_df['situation'].loc[i] = j['type']
             if j['type'] == 'RegularPlay':
-                events_df['situation'].loc[i] = 'OpenPlay'   
+                events_df['situation'].loc[i] = 'OpenPlay'
 
-    # adding other event types columns
+                # adding other event types columns
     event_types = list(data['matchCentreEventTypeJson'].keys())
     for event_type in event_types:
-        events_df[event_type] = pd.Series([event_type in row for row in list(events_df['satisfiedEventsTypes'])])         
+        events_df[event_type] = pd.Series([event_type in row for row in list(events_df['satisfiedEventsTypes'])])
 
     return events_df
-    
-
 
 
 def createMatchesDF(data):
@@ -468,17 +442,15 @@ def createMatchesDF(data):
                       'score', 'home', 'away', 'referee']
     matches_df = pd.DataFrame(columns=columns_req_ls)
     if type(data) == dict:
-        matches_dict = dict([(key,val) for key,val in data.items() if key in columns_req_ls])
+        matches_dict = dict([(key, val) for key, val in data.items() if key in columns_req_ls])
         matches_df = matches_df.append(matches_dict, ignore_index=True)
     else:
         for match in data:
-            matches_dict = dict([(key,val) for key,val in match.items() if key in columns_req_ls])
+            matches_dict = dict([(key, val) for key, val in match.items() if key in columns_req_ls])
             matches_df = matches_df.append(matches_dict, ignore_index=True)
-    
-    matches_df = matches_df.set_index('matchId')        
+
+    matches_df = matches_df.set_index('matchId')
     return matches_df
-
-
 
 
 def load_EPV_grid(fname='EPV_grid.csv'):
@@ -499,11 +471,7 @@ def load_EPV_grid(fname='EPV_grid.csv'):
     return epv
 
 
-
-
-
-
-def get_EPV_at_location(position,EPV,attack_direction,field_dimen=(106.,68.)):
+def get_EPV_at_location(position, EPV, attack_direction, field_dimen=(106., 68.)):
     """ get_EPV_at_location
     
     Returns the EPV value at a given (x,y) location
@@ -520,41 +488,35 @@ def get_EPV_at_location(position,EPV,attack_direction,field_dimen=(106.,68.)):
         EPV value at input position
         
     """
-    
-    x,y = position
-    if abs(x)>field_dimen[0]/2. or abs(y)>field_dimen[1]/2.:
-        return 0.0 # Position is off the field, EPV is zero
+
+    x, y = position
+    if abs(x) > field_dimen[0] / 2. or abs(y) > field_dimen[1] / 2.:
+        return 0.0  # Position is off the field, EPV is zero
     else:
-        if attack_direction==-1:
+        if attack_direction == -1:
             EPV = np.fliplr(EPV)
-        ny,nx = EPV.shape
-        dx = field_dimen[0]/float(nx)
-        dy = field_dimen[1]/float(ny)
-        ix = (x+field_dimen[0]/2.-0.0001)/dx
-        iy = (y+field_dimen[1]/2.-0.0001)/dy
-        return EPV[int(iy),int(ix)]
+        ny, nx = EPV.shape
+        dx = field_dimen[0] / float(nx)
+        dy = field_dimen[1] / float(ny)
+        ix = (x + field_dimen[0] / 2. - 0.0001) / dx
+        iy = (y + field_dimen[1] / 2. - 0.0001) / dy
+        return EPV[int(iy), int(ix)]
 
 
-
-                
-
-def to_metric_coordinates_from_whoscored(data,field_dimen=(106.,68.) ):
+def to_metric_coordinates_from_whoscored(data, field_dimen=(106., 68.)):
     '''
     Convert positions from Whoscored units to meters (with origin at centre circle)
     '''
-    x_columns = [c for c in data.columns if c[-1].lower()=='x'][:2]
-    y_columns = [c for c in data.columns if c[-1].lower()=='y'][:2]
-    x_columns_mod = [c+'_metrica' for c in x_columns]
-    y_columns_mod = [c+'_metrica' for c in y_columns]
-    data[x_columns_mod] = (data[x_columns]/100*106)-53
-    data[y_columns_mod] = (data[y_columns]/100*68)-34
+    x_columns = [c for c in data.columns if c[-1].lower() == 'x'][:2]
+    y_columns = [c for c in data.columns if c[-1].lower() == 'y'][:2]
+    x_columns_mod = [c + '_metrica' for c in x_columns]
+    y_columns_mod = [c + '_metrica' for c in y_columns]
+    data[x_columns_mod] = (data[x_columns] / 100 * 106) - 53
+    data[y_columns_mod] = (data[y_columns] / 100 * 68) - 34
     return data
 
 
-
-
 def addEpvToDataFrame(data):
-
     # loading EPV data
     EPV = load_EPV_grid('EPV_grid.csv')
 
@@ -567,37 +529,22 @@ def addEpvToDataFrame(data):
         if data.loc[i, 'type'] == 'Pass' and data.loc[i, 'outcomeType'] == 'Successful':
             start_pos = (data.loc[i, 'x_metrica'], data.loc[i, 'y_metrica'])
             start_epv = get_EPV_at_location(start_pos, EPV, attack_direction=1)
-            
+
             end_pos = (data.loc[i, 'endX_metrica'], data.loc[i, 'endY_metrica'])
             end_epv = get_EPV_at_location(end_pos, EPV, attack_direction=1)
-            
+
             diff = end_epv - start_epv
             EPV_difference.append(diff)
-            
+
         else:
             EPV_difference.append(np.nan)
-    
-    data = data.assign(EPV_difference = EPV_difference)
-    
-    
+
+    data = data.assign(EPV_difference=EPV_difference)
+
     # dump useless columns
     drop_cols = ['x_metrica', 'endX_metrica', 'y_metrica',
                  'endY_metrica']
     data.drop(drop_cols, axis=1, inplace=True)
     data.rename(columns={'EPV_difference': 'EPV'}, inplace=True)
-    
+
     return data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
